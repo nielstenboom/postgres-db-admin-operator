@@ -1,6 +1,6 @@
 apiVersion: postgresdbadminoperator.github.io/v1
 kind: PostgresDatabase
 metadata:
-  name: my-app-db4
+  name: my-app-db10wieufhioeqruhgeiurgieurhgouerighwiqerugheiqrugbeirougeoiqugh
 spec:
   createReadOnlyUser: true
