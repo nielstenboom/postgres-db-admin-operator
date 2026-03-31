@@ -1,5 +1,8 @@
 import pytest
 import psycopg
+from psycopg import sql
+
+from postgres_db_admin_operator.db import create_database, drop_database
 
 
 POSTGRES_PORT = 5433  # avoid clashing with any local postgres on 5432
@@ -35,8 +38,8 @@ def _is_postgres_ready() -> bool:
 
 
 @pytest.fixture
-async def conn(postgres_service):
-    async with await psycopg.AsyncConnection.connect(
+def conn(postgres_service):
+    with psycopg.connect(
         host="localhost",
         port=POSTGRES_PORT,
         user="postgres",
@@ -44,3 +47,26 @@ async def conn(postgres_service):
         autocommit=True,
     ) as c:
         yield c
+
+
+@pytest.fixture
+def role_db(conn):
+    """Creates a temporary database for role tests, yields a connection to it, drops it on teardown."""
+    name = "test-roles-db"
+    drop_database(conn, name)  # clean up from any previous failed run
+    create_database(conn, name)
+    with psycopg.connect(
+        host="localhost",
+        port=POSTGRES_PORT,
+        user="postgres",
+        password=POSTGRES_PASSWORD,
+        dbname=name,
+        autocommit=True,
+    ) as db_conn:
+        yield db_conn
+        # DROP OWNED BY revokes all grants (including GRANT ON DATABASE) so DROP ROLE can succeed
+        for role in [f"{name}_admin", f"{name}_readonly"]:
+            if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
+                db_conn.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+                conn.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
+    drop_database(conn, name)

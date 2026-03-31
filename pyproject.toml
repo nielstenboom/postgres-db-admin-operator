@@ -6,14 +6,16 @@ readme = "README.md"
 authors = [
     { name = "Niels ten Boom", email = "nielstenboom@gmail.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "kopf>=1.44.4",
     "psycopg>=3.3.3",
+    "kubernetes>=35.0.0",
+    "pydantic>=2.12.5",
 ]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
+[project.scripts]
+postgres-db-admin-operator = "postgres_db_admin_operator.main:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -22,6 +24,5 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
-    "pytest-asyncio>=1.3.0",
     "pytest-docker>=3.2.5",
 ]

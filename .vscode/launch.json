@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run operator",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "kopf",
+            "args": ["run", "src/postgres_db_admin_operator/main.py", "--all-namespaces"],
+            "env": {
+                "PG_HOST": "localhost",
+                "PG_USER": "postgres",
+                "PG_PASSWORD": "devpassword"
+            }
+        }
+    ]
+}

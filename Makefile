@@ -2,8 +2,9 @@ CLUSTER_NAME := postgres-operator-dev
 POSTGRES_NAMESPACE := postgres
 POSTGRES_RELEASE := postgres
 POSTGRES_PASSWORD := devpassword
+IMAGE := postgres-db-admin-operator:dev
 
-.PHONY: init destroy apply-crd port-forward
+.PHONY: init destroy port-forward deploy test
 
 init:
 	kind create cluster --name $(CLUSTER_NAME)
@@ -23,3 +24,16 @@ port-forward:
 
 destroy:
 	kind delete cluster --name $(CLUSTER_NAME)
+
+deploy:
+	docker build -t $(IMAGE) .
+	kind load docker-image $(IMAGE) --name $(CLUSTER_NAME)
+	helm upgrade --install postgres-db-admin-operator ./charts/postgres-db-admin-operator \
+		--set postgres.host=$(POSTGRES_RELEASE)-postgresql.$(POSTGRES_NAMESPACE).svc.cluster.local \
+		--set postgres.user=postgres \
+		--set postgres.password=$(POSTGRES_PASSWORD)
+	kubectl rollout restart deployment/postgres-db-admin-operator
+	kubectl rollout status deployment/postgres-db-admin-operator
+
+test:
+	uv run pytest -v

@@ -1,0 +1,12 @@
+image:
+  repository: postgres-db-admin-operator
+  tag: dev
+  pullPolicy: Never
+
+postgres:
+  host: ""
+  user: ""
+  password: ""
+  port: 5432
+
+cleanupOnDelete: false
