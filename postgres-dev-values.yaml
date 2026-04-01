@@ -1,0 +1,15 @@
+auth:
+  postgresPassword: devpassword
+
+architecture: standalone
+
+primary:
+  persistence:
+    enabled: false
+  livenessProbe:
+    initialDelaySeconds: 5
+  pdb:
+    create: false
+
+global:
+  defaultFips: "off"

@@ -7,12 +7,15 @@ Requires:
   - Postgres reachable via port-forward on localhost:5432
 """
 
+import random
+import string
 import time
 import psycopg
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-DB_NAME = "integration-test"
+_SUFFIX = "".join(random.choices(string.ascii_lowercase, k=5))
+DB_NAME = f"integration-test-{_SUFFIX}"
 SECRET_NAME = f"{DB_NAME}-credentials"
 NAMESPACE = "default"
 PG_HOST = "localhost"

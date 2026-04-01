@@ -37,7 +37,7 @@ jobs:
           helm install postgres bitnami/postgresql \
             --namespace postgres \
             --version 18.5.14 \
-            --set auth.postgresPassword=devpassword \
+            -f postgres-dev-values.yaml \
             --wait
 
       - name: Deploy operator
