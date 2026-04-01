@@ -1,8 +1,11 @@
 import pytest
 import psycopg
 import psycopg.errors
+from psycopg import sql
 
 from postgres_db_admin_operator.db import (
+    create_database,
+    drop_database,
     create_admin_role,
     setup_admin_role_privileges,
     create_readonly_role,
@@ -118,3 +121,75 @@ def test_drop_role(conn, role_db):
 
 def test_drop_role_idempotent(conn):
     drop_role(conn, "definitely-does-not-exist-role")
+
+
+@pytest.fixture
+def two_isolated_dbs(conn):
+    """Creates two fully-provisioned databases (admin + readonly roles each), cleans up on teardown."""
+    db_a = "test-isolation-db-a"
+    db_b = "test-isolation-db-b"
+
+    for db in [db_a, db_b]:
+        drop_database(conn, db)
+        create_database(conn, db)
+        create_admin_role(conn, db, ROLE_PASSWORD)
+        create_readonly_role(conn, db, ROLE_PASSWORD)
+        with psycopg.connect(
+            host="localhost",
+            port=POSTGRES_PORT,
+            user="postgres",
+            password=POSTGRES_PASSWORD,
+            dbname=db,
+            autocommit=True,
+        ) as db_conn:
+            setup_admin_role_privileges(db_conn, db)
+            setup_readonly_role_privileges(db_conn, db)
+            # Seed table created by postgres so default privilege grants apply to both roles
+            db_conn.execute("CREATE TABLE seed (id int)")
+            db_conn.execute("INSERT INTO seed VALUES (1)")
+
+    yield db_a, db_b
+
+    for db in [db_a, db_b]:
+        for role in [f"{db}_admin", f"{db}_readonly"]:
+            if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
+                with psycopg.connect(
+                    host="localhost",
+                    port=POSTGRES_PORT,
+                    user="postgres",
+                    password=POSTGRES_PASSWORD,
+                    dbname=db,
+                    autocommit=True,
+                ) as db_conn:
+                    db_conn.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+                conn.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
+        drop_database(conn, db)
+
+
+def test_roles_cannot_access_other_database(two_isolated_dbs):
+    """Admin and readonly roles of one database must not have privileges in another database."""
+    db_a, db_b = two_isolated_dbs
+
+    for own_db, other_db in [(db_a, db_b), (db_b, db_a)]:
+        # Admin can insert into its own database
+        with connect_as(f"{own_db}_admin", own_db) as conn:
+            conn.execute("INSERT INTO seed VALUES (2)")
+            result = conn.execute("SELECT COUNT(*) FROM seed").fetchone()
+            assert result == (2,)
+
+        # Readonly can select from its own database
+        with connect_as(f"{own_db}_readonly", own_db) as conn:
+            result = conn.execute("SELECT * FROM seed").fetchall()
+            assert result == [(1,), (2,)]
+
+        # Admin cannot create a table in the other database
+        with connect_as(f"{own_db}_admin", other_db) as conn:
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                conn.execute("CREATE TABLE should_not_exist (id int)")
+
+        # Readonly has no table grants in the other database
+        with connect_as(f"{own_db}_readonly", other_db) as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.role_table_grants WHERE grantee = current_user"
+            ).fetchone()
+            assert result == (0,)
