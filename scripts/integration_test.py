@@ -7,69 +7,61 @@ Requires:
   - Postgres reachable via port-forward on localhost:5432
 """
 
-import subprocess
 import time
-import sys
 import psycopg
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 
 DB_NAME = "integration-test"
+SECRET_NAME = f"{DB_NAME}-credentials"
 NAMESPACE = "default"
 PG_HOST = "localhost"
 PG_PORT = 5432
 PG_USER = "postgres"
 PG_PASSWORD = "devpassword"
 TIMEOUT = 60
+GROUP = "postgresdbadminoperator.github.io"
+VERSION = "v1"
+PLURAL = "postgresdatabases"
 
 
-MANIFEST = f"""
-apiVersion: postgresdbadminoperator.github.io/v1
-kind: PostgresDatabase
-metadata:
-  name: {DB_NAME}
-  namespace: {NAMESPACE}
-spec:
-  createReadOnlyUser: true
-"""
+def get_clients() -> tuple[client.CustomObjectsApi, client.CoreV1Api]:
+    config.load_kube_config()
+    return client.CustomObjectsApi(), client.CoreV1Api()
 
 
-def kubectl(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["kubectl", *args], capture_output=True, text=True)
-
-
-def apply_manifest() -> None:
+def apply_manifest(custom: client.CustomObjectsApi) -> None:
     print(f"Applying PostgresDatabase '{DB_NAME}'...")
-    result = subprocess.run(
-        ["kubectl", "apply", "-f", "-"],
-        input=MANIFEST,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(result.stderr)
-        sys.exit(1)
-    print(result.stdout.strip())
+    manifest = {
+        "apiVersion": f"{GROUP}/{VERSION}",
+        "kind": "PostgresDatabase",
+        "metadata": {"name": DB_NAME, "namespace": NAMESPACE},
+        "spec": {"createReadOnlyUser": True},
+    }
+    try:
+        custom.create_namespaced_custom_object(GROUP, VERSION, NAMESPACE, PLURAL, manifest)
+    except ApiException as e:
+        if e.status == 409:
+            print("Resource already exists, continuing...")
+        else:
+            raise
+    print(f"PostgresDatabase '{DB_NAME}' created")
 
 
-def wait_for_ready() -> None:
+def wait_for_ready(custom: client.CustomObjectsApi) -> None:
     print(f"Waiting for '{DB_NAME}' to reach Ready phase (timeout: {TIMEOUT}s)...")
     deadline = time.time() + TIMEOUT
     while time.time() < deadline:
-        result = kubectl(
-            "get", "postgresdatabase", DB_NAME,
-            "-n", NAMESPACE,
-            "-o", "jsonpath={.status.phase}",
-        )
-        phase = result.stdout.strip()
+        obj = custom.get_namespaced_custom_object(GROUP, VERSION, NAMESPACE, PLURAL, DB_NAME)
+        phase = obj.get("status", {}).get("phase", "")
         if phase == "Ready":
             print(f"Phase: {phase}")
             return
         if phase in ("InvalidName", "Collision"):
-            print(f"Operator reported a permanent error: {phase}")
-            sys.exit(1)
+            raise RuntimeError(f"Operator reported a permanent error: {phase}")
         print(f"Phase: {phase or '(pending)'} — retrying...")
         time.sleep(3)
-    print("Timed out waiting for Ready phase")
-    sys.exit(1)
+    raise TimeoutError(f"Timed out after {TIMEOUT}s waiting for Ready phase")
 
 
 def check_database_exists() -> None:
@@ -81,41 +73,38 @@ def check_database_exists() -> None:
             "SELECT 1 FROM pg_database WHERE datname = %s", (DB_NAME,)
         ).fetchone()
         if not row:
-            print(f"Database '{DB_NAME}' not found in Postgres")
-            sys.exit(1)
+            raise AssertionError(f"Database '{DB_NAME}' not found in Postgres")
     print(f"Database '{DB_NAME}' exists")
 
 
-def check_secret_exists() -> None:
-    print(f"Checking credentials secret '{DB_NAME}' exists in namespace '{NAMESPACE}'...")
-    result = kubectl("get", "secret", DB_NAME, "-n", NAMESPACE)
-    if result.returncode != 0:
-        print(f"Secret '{DB_NAME}' not found: {result.stderr.strip()}")
-        sys.exit(1)
+def check_secret_exists(core: client.CoreV1Api) -> None:
+    print(f"Checking credentials secret '{SECRET_NAME}' exists in namespace '{NAMESPACE}'...")
+    deadline = time.time() + TIMEOUT
+    while time.time() < deadline:
+        try:
+            secret = core.read_namespaced_secret(SECRET_NAME, NAMESPACE)
+            break
+        except ApiException as e:
+            if e.status == 404:
+                print("Secret not found yet — retrying...")
+                time.sleep(3)
+            else:
+                raise
+    else:
+        raise TimeoutError(f"Timed out waiting for secret '{SECRET_NAME}' to appear")
 
-    for key in ("admin-username", "admin-password", "admin-database-url", "readonly-username", "readonly-password"):
-        result = kubectl(
-            "get", "secret", DB_NAME,
-            "-n", NAMESPACE,
-            "-o", f"jsonpath={{.data.{key}}}",
-        )
-        if not result.stdout.strip():
-            print(f"Secret key '{key}' is missing or empty")
-            sys.exit(1)
-    print(f"Secret '{DB_NAME}' exists with all expected keys")
-
-
-def cleanup() -> None:
-    print(f"Cleaning up PostgresDatabase '{DB_NAME}'...")
-    kubectl("delete", "postgresdatabase", DB_NAME, "-n", NAMESPACE)
+    expected_keys = ("admin-username", "admin-password", "admin-database-url", "readonly-username", "readonly-password")
+    for key in expected_keys:
+        if not secret.data or not secret.data.get(key):
+            raise AssertionError(f"Secret key '{key}' is missing or empty")
+    print(f"Secret '{SECRET_NAME}' exists with all expected keys")
 
 
 if __name__ == "__main__":
-    try:
-        apply_manifest()
-        wait_for_ready()
-        check_database_exists()
-        check_secret_exists()
-        print("\nAll checks passed.")
-    finally:
-        cleanup()
+    custom, core = get_clients()
+    apply_manifest(custom)
+    wait_for_ready(custom)
+    check_database_exists()
+    check_secret_exists(core)
+    print("\nAll checks passed.")
+

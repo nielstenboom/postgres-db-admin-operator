@@ -35,6 +35,7 @@ jobs:
           kubectl create namespace postgres
           helm install postgres bitnami/postgresql \
             --namespace postgres \
+            --version 18.5.14 \
             --set auth.postgresPassword=devpassword \
             --wait
 

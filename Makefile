@@ -2,6 +2,7 @@ CLUSTER_NAME := postgres-operator-dev
 POSTGRES_NAMESPACE := postgres
 POSTGRES_RELEASE := postgres
 POSTGRES_PASSWORD := devpassword
+POSTGRES_CHART_VERSION := 18.5.14
 IMAGE := postgres-db-admin-operator:dev
 SECRET_NAME := postgres-credentials
 
@@ -15,15 +16,9 @@ init:
 	kubectl create namespace $(POSTGRES_NAMESPACE)
 	helm install $(POSTGRES_RELEASE) bitnami/postgresql \
 		--namespace $(POSTGRES_NAMESPACE) \
+		--version $(POSTGRES_CHART_VERSION) \
 		--set auth.postgresPassword=$(POSTGRES_PASSWORD) \
 		--wait
-
-
-port-forward:
-	kubectl port-forward -n $(POSTGRES_NAMESPACE) svc/$(POSTGRES_RELEASE)-postgresql 5432:5432
-
-destroy:
-	kind delete cluster --name $(CLUSTER_NAME)
 
 deploy:
 	docker build -t $(IMAGE) .
@@ -37,6 +32,12 @@ deploy:
 		--set postgres.password.existingSecret=$(SECRET_NAME)
 	kubectl rollout restart deployment/postgres-db-admin-operator
 	kubectl rollout status deployment/postgres-db-admin-operator
+
+port-forward:
+	kubectl port-forward -n $(POSTGRES_NAMESPACE) svc/$(POSTGRES_RELEASE)-postgresql 5432:5432
+
+destroy:
+	kind delete cluster --name $(CLUSTER_NAME)
 
 test:
 	uv run pytest -v
