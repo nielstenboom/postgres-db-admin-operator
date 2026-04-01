@@ -16,4 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -r
 COPY --from=builder /app/.venv /app/.venv
 COPY src/ /app/src/
 
+LABEL org.opencontainers.image.source=https://github.com/nielstenboom/postgres-db-admin-operator
+
 CMD ["/app/.venv/bin/kopf", "run", "/app/src/postgres_db_admin_operator/main.py", "--all-namespaces"]

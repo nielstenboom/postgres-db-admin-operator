@@ -50,19 +50,30 @@ metadata:
 kubectl apply -f database.yaml
 ```
 
-Once reconciled, the operator writes a Secret named `my-app` in the same namespace containing:
+Once reconciled, the operator writes a Secret named `my-app-credentials` in the same namespace:
 
-| Key | Description |
-|---|---|
-| `admin-username` | Admin role name |
-| `admin-password` | Admin role password |
-| `admin-database-url` | Full connection URL for the admin role |
-| `host` | PostgreSQL host |
-| `port` | PostgreSQL port |
-| `dbname` | Database name |
-| `readonly-username` | Read-only role name (if `createReadOnlyUser: true`) |
-| `readonly-password` | Read-only role password (if `createReadOnlyUser: true`) |
-| `readonly-database-url` | Full connection URL for the read-only role (if `createReadOnlyUser: true`) |
+```console
+$ kubectl get secret my-app-credentials -o yaml
+apiVersion: v1
+data:
+  admin-database-url: postgresql://xxx
+  admin-password: xxx
+  admin-username: xxx
+  dbname: my-app
+  host: <pg-host>
+  port: 5432
+  readonly-database-url: postgresql://xxx
+  readonly-password: xxx
+  readonly-username: xxx
+kind: Secret
+metadata:
+  creationTimestamp: "2026-04-01T09:15:05Z"
+  name: my-app-credentials
+  namespace: default
+type: Opaque
+```
+
+The `readonly-*` keys are only present when `createReadOnlyUser: true`.
 
 ### Configuration
 
