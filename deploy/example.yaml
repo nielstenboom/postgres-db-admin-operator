@@ -1,6 +1,5 @@
 apiVersion: postgresdbadminoperator.github.io/v1
 kind: PostgresDatabase
 metadata:
-  name: my-app-db4
-spec:
-  createReadOnlyUser: true
+  name: k8s-test
+  namespace: new-namespace

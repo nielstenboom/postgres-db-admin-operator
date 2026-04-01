@@ -1,0 +1,16 @@
+image:
+  repository: postgres-db-admin-operator
+  tag: dev
+  pullPolicy: IfNotPresent
+
+postgres:
+  host: ""
+  port: 5432
+  user: ""
+  password:
+    existingSecret: ""
+    secretKey: "password"
+
+# Optional: If true, the operator will delete the database and user when the PostgresDatabase resource is deleted. 
+# Warning: Very destructive operation. Use with caution!!
+cleanupOnDelete: false

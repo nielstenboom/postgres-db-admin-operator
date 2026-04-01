@@ -1,33 +1,105 @@
 # postgres-db-admin-operator
 
+A very simple Kubernetes operator that can create PostgreSQL databases + roles as native Kubernetes resources. This operator can be used to automate manual Postgres operations. This project has been built for our company's [innoweek](https://blog.promaton.com/the-power-of-a-single-week-dedicated-to-innovation-585c2721de17) to learn about writing your own operator. Wanted to make it open-source in case it helps anyone!
+
+Create a `PostgresDatabase` custom resource and the operator will:
+
+- Create the database on your PostgreSQL server
+- Create an admin role with full privileges
+- Optionally create a read-only role with `SELECT`-only access
+- Write connection credentials into a Kubernetes `Secret` in the same namespace as the resource
+
+## Getting started
+
+Create a secret with your PostgreSQL password:
+
+```bash
+kubectl create secret generic postgres-credentials \
+  --from-literal=password=<your-postgres-password>
+```
+
+Create a `values.yaml`:
+
+```yaml
+postgres:
+  host: <pg-host>
+  user: <pg-user>
+  password:
+    existingSecret: postgres-credentials
+```
+
+Install the Helm chart:
+
+```bash
+helm upgrade --install postgres-db-admin-operator \
+  oci://ghcr.io/nielstenboom/postgres-db-admin-operator \
+  -f values.yaml
+```
+
+### Create your first database
+
+```yaml
+apiVersion: postgresdbadminoperator.github.io/v1
+kind: PostgresDatabase
+metadata:
+  name: my-app
+  namespace: default
+```
+
+```bash
+kubectl apply -f database.yaml
+```
+
+Once reconciled, the operator writes a Secret named `my-app` in the same namespace containing:
+
+| Key | Description |
+|---|---|
+| `admin-username` | Admin role name |
+| `admin-password` | Admin role password |
+| `admin-database-url` | Full connection URL for the admin role |
+| `host` | PostgreSQL host |
+| `port` | PostgreSQL port |
+| `dbname` | Database name |
+| `readonly-username` | Read-only role name (if `createReadOnlyUser: true`) |
+| `readonly-password` | Read-only role password (if `createReadOnlyUser: true`) |
+| `readonly-database-url` | Full connection URL for the read-only role (if `createReadOnlyUser: true`) |
+
+### Configuration
+
+| Value | Description | Default |
+|---|---|---|
+| `postgres.host` | PostgreSQL host | `""` |
+| `postgres.port` | PostgreSQL port | `5432` |
+| `postgres.user` | PostgreSQL superuser | `""` |
+| `postgres.password.existingSecret` | Name of the secret containing the password | `""` |
+| `postgres.password.secretKey` | Key within the secret | `"password"` |
+| `cleanupOnDelete` | Drop database and roles when the resource is deleted | `false` |
+
 ## Development
 
-Start the kind cluster and deploy postgres:
+### Prerequisites
+
+- Docker
+- kind
+- kubectl + helm
+- [uv](https://github.com/astral-sh/uv)
+
+### Make commands
+
+| Command | Description |
+|---|---|
+| `make init` | Create a local kind cluster and deploy PostgreSQL into it |
+| `make deploy` | Build the image, load it into kind, and install/upgrade the Helm chart |
+| `make port-forward` | Port-forward PostgreSQL to `localhost:5432` |
+| `make test` | Run the test suite (requires Docker) |
+| `make destroy` | Tear down the kind cluster |
+
+### Running the operator locally
+
 ```bash
 make init
+make port-forward &
+PG_HOST=localhost PG_USER=postgres PG_PASSWORD=devpassword \
+  uv run kopf run src/postgres_db_admin_operator/main.py --all-namespaces
 ```
 
-Port-forward postgres locally:
-```bash
-make port-forward
-```
-
-Run the operator:
-```bash
-PG_HOST=localhost PG_USER=postgres PG_PASSWORD=devpassword uv run kopf run src/postgres_db_admin_operator/main.py --all-namespaces
-```
-
-Apply an example resource:
-```bash
-kubectl apply -f deploy/example.yaml
-```
-
-Run the tests (requires Docker):
-```bash
-uv run pytest  -v
-```
-
-Tear down the cluster:
-```bash
-make destroy
-```
