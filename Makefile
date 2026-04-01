@@ -9,7 +9,7 @@ SECRET_NAME := postgres-credentials
 
 init:
 	kind create cluster --name $(CLUSTER_NAME)
-	kubectx kind-$(CLUSTER_NAME)
+	kubectl config use-context kind-$(CLUSTER_NAME)
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
 	kubectl create namespace $(POSTGRES_NAMESPACE)

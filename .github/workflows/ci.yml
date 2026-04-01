@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+        with:
+          enable-cache: true
+
+      - name: Run unit tests
+        run: uv run pytest -v
+
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: postgres-operator-dev
+
+      - name: Install Postgres
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          kubectl create namespace postgres
+          helm install postgres bitnami/postgresql \
+            --namespace postgres \
+            --set auth.postgresPassword=devpassword \
+            --wait
+
+      - name: Deploy operator
+        run: make deploy
+
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+        with:
+          enable-cache: true
+
+      - name: Port-forward Postgres
+        run: kubectl port-forward -n postgres svc/postgres-postgresql 5432:5432 &
+
+      - name: Run integration tests
+        run: uv run python scripts/integration_test.py
