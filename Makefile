@@ -17,7 +17,7 @@ init:
 	helm install $(POSTGRES_RELEASE) bitnami/postgresql \
 		--namespace $(POSTGRES_NAMESPACE) \
 		--version $(POSTGRES_CHART_VERSION) \
-		--set auth.postgresPassword=$(POSTGRES_PASSWORD) \
+		-f postgres-dev-values.yaml \
 		--wait
 
 deploy:
@@ -27,6 +27,9 @@ deploy:
 		--from-literal=password=$(POSTGRES_PASSWORD) \
 		--dry-run=client -o yaml | kubectl apply -f -
 	helm upgrade --install postgres-db-admin-operator ./charts/postgres-db-admin-operator \
+		--set image.repository=postgres-db-admin-operator \
+		--set image.tag=dev \
+		--set image.pullPolicy=Never \
 		--set postgres.host=$(POSTGRES_RELEASE)-postgresql.$(POSTGRES_NAMESPACE).svc.cluster.local \
 		--set postgres.user=postgres \
 		--set postgres.password.existingSecret=$(SECRET_NAME)
