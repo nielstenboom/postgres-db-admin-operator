@@ -32,7 +32,7 @@ Install the Helm chart:
 
 ```bash
 helm upgrade --install postgres-db-admin-operator \
-  oci://ghcr.io/nielstenboom/postgres-db-admin-operator \
+  oci://ghcr.io/nielstenboom/charts/postgres-db-admin-operator \
   -f values.yaml
 ```
 
