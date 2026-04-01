@@ -1,7 +1,5 @@
 apiVersion: postgresdbadminoperator.github.io/v1
 kind: PostgresDatabase
 metadata:
-  name: k8s-test-secret-double2
-  namespace: postgres
-spec:
-  createReadOnlyUser: true
+  name: k8s-test
+  namespace: new-namespace

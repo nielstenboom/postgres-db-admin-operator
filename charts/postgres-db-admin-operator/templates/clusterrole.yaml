@@ -3,6 +3,10 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}
 rules:
+  # Framework: knowing which other operators are running (i.e. peering).
+  - apiGroups: [kopf.dev]
+    resources: [clusterkopfpeerings]
+    verbs: [list, watch, patch, get]
   # Watch and manage PostgresDatabase resources
   - apiGroups: [postgresdbadminoperator.github.io]
     resources: [postgresdatabases, postgresdatabases/status]

@@ -3,7 +3,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-COPY . /app
+COPY pyproject.toml uv.lock README.md /app/
+COPY src/ /app/src/
 
 RUN uv sync --locked --no-editable --no-dev
 

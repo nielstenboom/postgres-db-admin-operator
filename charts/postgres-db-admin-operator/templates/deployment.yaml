@@ -26,7 +26,10 @@ spec:
             - name: PG_USER
               value: {{ .Values.postgres.user | quote }}
             - name: PG_PASSWORD
-              value: {{ .Values.postgres.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.password.existingSecret }}
+                  key: {{ .Values.postgres.password.secretKey }}
             - name: PG_PORT
               value: {{ .Values.postgres.port | quote }}
             - name: CLEANUP_ON_DELETE

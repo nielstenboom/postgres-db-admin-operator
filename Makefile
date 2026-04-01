@@ -3,6 +3,7 @@ POSTGRES_NAMESPACE := postgres
 POSTGRES_RELEASE := postgres
 POSTGRES_PASSWORD := devpassword
 IMAGE := postgres-db-admin-operator:dev
+SECRET_NAME := postgres-credentials
 
 .PHONY: init destroy port-forward deploy test
 
@@ -16,7 +17,6 @@ init:
 		--namespace $(POSTGRES_NAMESPACE) \
 		--set auth.postgresPassword=$(POSTGRES_PASSWORD) \
 		--wait
-	kubectl apply -f deploy/crd.yaml
 
 
 port-forward:
@@ -28,10 +28,13 @@ destroy:
 deploy:
 	docker build -t $(IMAGE) .
 	kind load docker-image $(IMAGE) --name $(CLUSTER_NAME)
+	kubectl create secret generic $(SECRET_NAME) \
+		--from-literal=password=$(POSTGRES_PASSWORD) \
+		--dry-run=client -o yaml | kubectl apply -f -
 	helm upgrade --install postgres-db-admin-operator ./charts/postgres-db-admin-operator \
 		--set postgres.host=$(POSTGRES_RELEASE)-postgresql.$(POSTGRES_NAMESPACE).svc.cluster.local \
 		--set postgres.user=postgres \
-		--set postgres.password=$(POSTGRES_PASSWORD)
+		--set postgres.password.existingSecret=$(SECRET_NAME)
 	kubectl rollout restart deployment/postgres-db-admin-operator
 	kubectl rollout status deployment/postgres-db-admin-operator
 
