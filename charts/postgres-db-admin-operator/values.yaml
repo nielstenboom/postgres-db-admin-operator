@@ -1,6 +1,6 @@
 image:
-  repository: postgres-db-admin-operator
-  tag: dev
+  repository: ghcr.io/nielstenboom/postgres-db-admin-operator
+  tag: ""
   pullPolicy: IfNotPresent
 
 postgres:
