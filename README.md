@@ -44,6 +44,10 @@ kind: PostgresDatabase
 metadata:
   name: my-app
   namespace: default
+# optional: uncommment if you also want a read-only user
+# to be created alongside the admin user
+# spec:
+#  createReadOnlyUser: true
 ```
 
 ```bash
